@@ -27,7 +27,9 @@
 \addtolength{\textheight}{1.5in}
 
 \begin{document}
-\maketitle
+\maketitle\
+
+\tableofcontents\
 
 \section{Treść zadania}
 W ramach projektu dokonaliśmy implementacji sieci typu master-slave,
@@ -39,7 +41,7 @@ wstępnymi, projekt udostępnia następujące usługi warstwy łącza danych:
   \item Send Data with No Acknowledge (SDN) -- usługa typu broadcast.
 \end{itemize}
 
-\paragraph{Przyjęte założenia}\
+\subsection{Przyjęte założenia}\
 
 \begin{itemize}
   \item każdy węzeł sieci posiada unikalny identyfikator (liczba 8-bitowa),
@@ -52,7 +54,7 @@ wstępnymi, projekt udostępnia następujące usługi warstwy łącza danych:
 
 Implementacja została wykonana w środowisku GNU/Linux.
 
-\section{Dodatkowe założenia implementacyjne}
+\subsection{Dodatkowe założenia implementacyjne}
 
 W trakcie analizy treści zadania dostrzegliśmy potrzebę wprowadzenia pewnych
 dodatkowych założeń/ograniczeń precyzujących implementowane zagadnienie:
@@ -82,7 +84,7 @@ dodatkowych założeń/ograniczeń precyzujących implementowane zagadnienie:
 
 \section{Logika protokołu}
 
-\paragraph{Przydział łącza}\
+\subsection{Przydział łącza}\
 
 Przydział łącza przez maszynę \emph{master} opiera się na algorytmie
 \emph{Round Robin}. Węzeł zarządzający odpytuje kolejno wszystkie maszyny
@@ -95,7 +97,7 @@ przekaże prawo do transmisji następnej maszynie. W ramach pojedynczej
 transmisji można wysłać do 10 bajtów danych. Następnie \emph{master} ponownie
 przejmuje szynę i kontynuuje odpytywanie od następnej maszyny.
 
-\paragraph{Przesył danych (z punktu widzenia użytkownika)}\
+\subsection{Przesył danych (z punktu widzenia użytkownika)}\
 
 Maszyna \emph{slave} chcąc przesłać dane nasłuchuje na szynie czekając na
 swoją kolejkę -- tj. czeka na ramkę \texttt{BUS} adresowaną do niej. Po
@@ -122,13 +124,13 @@ pozostałych węzłów (tzn. każda para maszyn pracujących w sieci posiada
 indywidualną parę liczników), co zwalnia maszyny z obowiązku śledzenia
 transmisji, które nie są adresowane do nich.
 
-\paragraph{Kwestia \emph{timeout'ów}}\
+\subsection{Kwestia \emph{timeout'ów}}\
 
 Istnieją dwie sytuacje, w których konieczne jest wprowadzenie czasowego
 przeterminowania odpowiedzi na ramki, aby zapobiec zawieszeniu działania
 protokołu z powodu nieobecności którejś ze stacji:
 \begin{itemize}
-  \item odpowiedĽ \emph{slave'a} na ramkę \texttt{BUS},
+  \item odpowiedź \emph{slave'a} na ramkę \texttt{BUS},
   \item potwierdzenie \texttt{ACK} odebrania danych przez \emph{slave'a}
         (odbiorcę).
 \end{itemize}
@@ -139,7 +141,7 @@ rozpoczęciu oczekiwania. W obu wymienionych powyżej przypadkach uznajemy, że
 jeśli w pierwszych \textbf{5 bajtach} nie pojawi się znacznik początku
 poprawnej ramki, nasłuchujący może uznać, iż odpowiedzi nie było.
 
-\paragraph{Weryfikacja poprawności datagramów}\
+\subsection{Weryfikacja poprawności datagramów}\
 
 Każda wysyłana ramka jest opatrzona \emph{cyklicznym kodem nadmiarowym}
 \emph{CRC16}. Kod funkcji obliczającej sumę kontrolną został dostarczony
@@ -207,17 +209,17 @@ stacji może daną ramkę wysłać, a jaki odebrać):
 
 \section{Architektura rozwiązania}
 
-\paragraph{Funkcje protokołu}\
+\subsection{Funkcje protokołu}\
 
 Protokół komunikacji będzie udostępniał kilka funkcji pozwalających na jego
 użytkowanie z poziomu aplikacji.
 \begin{itemize}
   \item \texttt{mss\_run\_master(\textnormal{<<struktura sieci>>})} : funkcja
-        wywoływana tylko i wyłącznie w węĽle \emph{master} i realizująca
+        wywoływana tylko i wyłącznie w węźle \emph{master} i realizująca
         zaprojektowany algorytm przydziału łącza, \emph{master} zna adresy
         wszystkich stacji w sieci, stąd argument je opisujący;
   \item \texttt{mss\_slave\_send(\textnormal{<<adres>>}, \textnormal{<<dane>>})}
-        : wywoływana w węĽle \emph{slave} celem transmisji danych do innej
+        : wywoływana w węźle \emph{slave} celem transmisji danych do innej
         (lub innych) stacji, funkcja jest blokująca -- do momentu zakończenia
         transmisji, wartość zwracana informuje o powodzeniu operacji;
   \item \texttt{mss\_slave\_recv(\textnormal{<<bufor>>})} : po wywołaniu tej
@@ -229,16 +231,16 @@ użytkowanie z poziomu aplikacji.
         wiadomości.
 \end{itemize}
 Funkcja wysyłająca zawiera w sobie całą logikę działania protokołu --
-oczekiwanie na ramkę \texttt{BUS}, odpowiedĽ ramką \texttt{REQ} i transmisję.
+oczekiwanie na ramkę \texttt{BUS}, odpowiedź ramką \texttt{REQ} i transmisję.
 W przypadku błędu lub braku potwierdzenia nie próbuje ponownie wysłać danych
 -- leży to w gestii aplikacji.
 
-\paragraph{Aplikacje}\
+\subsection{Aplikacje testowe}\
 
 Przygotowaliśmy dwa programy w języku C: program dla węzła \emph{master}
 oraz dla węzła \emph{slave}:
 \begin{itemize}
-    \item \texttt{mss-bus-master} to program działający na węĽle
+    \item \texttt{mss-bus-master} to program działający na węźle
           \emph{master}, utrzymuje on statyczną tablicę adresów hostów
           \emph{slave} i kontroluje dostęp do szyny, kod programu sprowadza
           się w zasadzie do wywołania funkcji \texttt{mss\_run\_master()};
@@ -251,7 +253,27 @@ oraz dla węzła \emph{slave}:
 
 \section{Wnioski z implementacji}
 
-Bla bla bla, Szyna ssie! Bla bla bla.
+\begin{itemize}
+  \item Ani w programie testowym, ani w samej bibliotece nie było konieczne
+        stosowanie wątków. Sama biblioteka z założenia miała działać jedynie w
+        warstwie drugiej i odpowiadać za poprawną transmisję danych pomiędzy
+        stacjami. Tą funkcjonalność udało się uzyskać poprzez wprowadzenie
+        funkcji dokonujących zapisu i odczytu danych na i z szyny zgodnie z
+        opisanym protokołem. W aplikacji testowej udało się uniknąć stostowania
+        wątków dzięki przeplotowi funkcji zapisu i odczytu z odpowiednimi
+        timeoutami.
+  \item Mimo, iż osiągnięcie dużej wydajności szyny nie było priorytetem, udało
+        się uzyskać dobrą prędkość z perspektywy użytkownika przesyłającego
+        wiadomości tekstowe. Ponadto opóźnienia w transferze wprowadzane były
+        głównie przez timeout'y biblioteki libser użytej do pisania/czytania
+        pojedyńczych bajtów na łącze RS485 - w szczególności opóźnienie
+        wynikało z czasu, jaki \emph{master} oczekiwał na zgłoszenie się
+        stacji, która miała w danym momencie prawo dostępu do szyny. Poniżej
+        pewnej granicy oczekiwania odczyt danych przestawał być poprawny
+        (prawdopodobnie zbyt krótki czas oczekiwania powodował, iż dane były
+        pisane na szynę w zbyt krótkich odstępach czasu).
+\end{itemize}
+
 
 \end{document}
 
