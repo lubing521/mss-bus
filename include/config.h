@@ -21,8 +21,8 @@
 #define MSS_VERBOSE_MODE        1
 
 /* Libser serial port timeouts. */
-#define MSS_LIBSER_WAIT_SEC     1
-#define MSS_LIBSER_WAIT_USEC    0
+#define MSS_LIBSER_WAIT_SEC     0
+#define MSS_LIBSER_WAIT_USEC    125000
 
 #endif  /* _MSS_BUS_CONFIG_H_ */
 

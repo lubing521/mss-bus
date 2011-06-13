@@ -33,17 +33,22 @@ int mss_init_slave (mss_addr addr) {
 }
 
 int mss_slave_send (mss_addr target_addr, const char* data, size_t data_len) {
+    size_t data_sent;
+    MssPacket* packet;
+    MssPacket* dat_packet;
+    mss_num* packet_count;
+
     if( mss_fd == -1 )
         return MSS_UNINITIALIZED;
         
     /* Prepare for sending... */
-    size_t data_sent = 0;
-    MssPacket* packet = (MssPacket*) malloc( sizeof(MssPacket) );
-    MssPacket* dat_packet = (MssPacket*) malloc( sizeof(MssPacket) );
+    data_sent = 0;
+    packet = (MssPacket*) malloc( sizeof(MssPacket) );
+    dat_packet = (MssPacket*) malloc( sizeof(MssPacket) );
     
     /* Watch out, MSS_BROADCAST_ADDR produces invalid pointer, thus counter
      * shall never be used in SDN mode... */
-    mss_num* packet_count = outcoming_count + target_addr;
+    packet_count = outcoming_count + target_addr;
     
     dat_packet->dat.packet_type = MSS_DAT;
     dat_packet->dat.src_addr = local_addr;
@@ -63,13 +68,14 @@ int mss_slave_send (mss_addr target_addr, const char* data, size_t data_len) {
             (packet->generic.packet_type == MSS_BUS) &&
             (packet->bus.slave_addr == local_addr)
         ) {
+            int copy_bytes;
 #ifdef DEBUG
             printf( "mss-bus-slave(): Got bus packet for %d (local machine)\n",
                 packet->bus.slave_addr );
 #endif
     
             /* Prepare packet... */
-            int copy_bytes = data_len - data_sent;
+            copy_bytes = data_len - data_sent;
             if( copy_bytes > 10 )
                 copy_bytes = 10;
             /* SDN's not counted. */
@@ -132,14 +138,16 @@ int mss_slave_send (mss_addr target_addr, const char* data, size_t data_len) {
     return data_sent; /* Success - sent all the data. */
 }
 
-int mss_slave_recv (mss_addr* sender_addr, char* buffer, int* is_broadcast) {
+int mss_slave_recv (mss_addr* sender_addr, char* buffer, int* is_broadcast, int in_loop) {
+    int bytes_received;
+    int loop = in_loop;
+    MssPacket* packet;
+    
     if( mss_fd == -1 )
         return MSS_UNINITIALIZED;
-        
-    int bytes_received;
-    int loop = 1;
-    MssPacket* packet = (MssPacket*) malloc( sizeof(MssPacket) );
-    
+ 
+    packet = (MssPacket*) malloc( sizeof(MssPacket) );
+
     /* Keep receiving until received a packet to local machine. */
     while( loop ) {
         int recv_res = receive_mss_packet( packet, MSS_TIMEOUT );
@@ -161,6 +169,9 @@ int mss_slave_recv (mss_addr* sender_addr, char* buffer, int* is_broadcast) {
                 ack_packet->ack.number = packet->dat.number;
                 CRC_FOR_ACK( ack_packet );
                 /* ...then send it... */
+#ifdef DEBUG
+		printf("mss-bus-slave(): Sending ACK...\n");
+#endif
                 send_mss_packet( ack_packet );
                 /* ...and destroy eventually, mwahaha! */
                 free( ack_packet );
@@ -171,13 +182,22 @@ int mss_slave_recv (mss_addr* sender_addr, char* buffer, int* is_broadcast) {
             } else
                 (*is_broadcast) = 1;
         
+	    loop = 10;
+	    break;
         } /* if */
+	--loop;
     
     } /* while( loop ) */
     
     /* Return. */
-    bytes_received = packet->dat.data_len;
-    free( packet );
-    return bytes_received;
+    if (loop > 0) {
+	bytes_received = packet->dat.data_len;
+	free( packet );
+	return bytes_received;
+    }
+    else {
+	free( packet );
+	return 0;
+    }
 }
 

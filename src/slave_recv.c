@@ -14,8 +14,8 @@ int main (int argc, char** argv)
     int bcast;
     
     if (argc != 2) {
-    fprintf(stderr, "ERROR: No slave address given!\n");
-    return -1;
+        fprintf(stderr, "ERROR: No slave address given!\n");
+        return -1;
     }
 
     slave_addr = atoi(argv[1]);
@@ -24,10 +24,12 @@ int main (int argc, char** argv)
     mss_init_slave(slave_addr);
     printf("Slave: #%d (recv)\n", slave_addr);
 
-    msg_size = mss_slave_recv(&sender, msg, &bcast);
+    for (;;) {
+	msg_size = mss_slave_recv(&sender, msg, &bcast, 1);
 
-    msg[msg_size] = '\0';
-    printf("Msg: %s\n", msg);
+	msg[msg_size] = '\0';
+	printf("Msg: %s\n", msg);
+    }
 
     mss_close();
     

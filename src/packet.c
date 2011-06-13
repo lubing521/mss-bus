@@ -7,8 +7,9 @@
 
 const GenericPacket MSS_NRQ_PACKET = { 32771, MSS_NRQ };
 
-// "Cometh to me, serial port file descriptor, for thou shall serve me well!"
-//       -- Packet Manager of mss-bus lib
+/* "Cometh to me, serial port file descriptor, for thou shall serve me well!"
+ *       -- Packet Manager of mss-bus lib
+ */
 extern int mss_fd;
 
 /** Defines undefined behaviour. */
@@ -29,22 +30,24 @@ int receive_mss_packet( MssPacket* packet, int timeout ) {
     int got_packet = FALSE;
     int type_known = FALSE;
     int is_dat = FALSE;
+    uint8_t *pak_ptr = (unsigned char*) packet;
+    mss_crc16 received_crc;
 
     tv.tv_sec  = MSS_LIBSER_WAIT_SEC;
     tv.tv_usec = MSS_LIBSER_WAIT_USEC;
     
-    uint8_t *pak_ptr = (unsigned char*) packet;
-    
+    packet->generic.packet_type = -1;
+
     for( ; timeout != 0; --timeout ) {
-        libser_read( mss_fd, &c, 1, &tv );
+        libser_read( mss_fd, (char *) &c, 1, &tv );
 #ifdef HEAVY_DEBUG
-    printf("receive_mss_packet(): Recv: %c\n", c);
+        printf("receive_mss_packet(): Recv: %c\n", c);
 #endif
         if( got_packet ) {
-            // store char
+            /* store char */
             *pak_ptr = c;
             
-            // if it's time for packet type recognition...
+            /* if it's time for packet type recognition... */
             if( timeout == 1 && !type_known ) {
                 type_known = TRUE;
                 if( c == MSS_BUS ) timeout = 2;
@@ -54,7 +57,7 @@ int receive_mss_packet( MssPacket* packet, int timeout ) {
                 else return MSS_BAD_TYPE;
             } else
             
-        // if receiving dat packet
+        /* if receiving dat packet */
         if( timeout == 1 && is_dat == TRUE ) {
 #ifdef HEAVY_DEBUG
         printf("receive_mss_packet(): data len: %d\n", c);
@@ -63,22 +66,22 @@ int receive_mss_packet( MssPacket* packet, int timeout ) {
         is_dat = FALSE;
         }
         
-            // make ready to read next byte
+            /* make ready to read next byte */
             ++pak_ptr;
             
         } else if( c == (uint8_t) MSS_BOF ) {
             got_packet = TRUE;
-            // at least three more byte must be received
+            /* at least three more byte must be received */
             timeout = 4;
         }
         
-        // if infinite wait
+        /* if infinite wait */
         if( timeout < 0 ) timeout = -1;
     }
     
-    mss_crc16 received_crc = packet->generic.crc;
+    received_crc = packet->generic.crc;
 
-    // we have received something...
+    /* we have received something... */
     if( got_packet ) {
         switch( packet->generic.packet_type ) {
         
@@ -110,7 +113,7 @@ int receive_mss_packet( MssPacket* packet, int timeout ) {
             break;            
         }
     
-    // timeout reached...
+    /* timeout reached... */
     } else
         return MSS_TIMEOUT;
         
@@ -125,6 +128,8 @@ int receive_mss_packet( MssPacket* packet, int timeout ) {
 int send_mss_packet (MssPacket* packet)
 {
     int bytes_total;    
+    int sent;
+    uint8_t bof = (uint8_t) MSS_BOF;
 
     switch (packet->generic.packet_type) {
         case MSS_BUS:
@@ -138,9 +143,6 @@ int send_mss_packet (MssPacket* packet)
         default:
             return MSS_WTF;
     }
-    
-    int sent;
-    uint8_t bof = (uint8_t) MSS_BOF;
 
     /* send BOF */
     libser_flush(mss_fd);
@@ -155,10 +157,11 @@ int send_mss_packet (MssPacket* packet)
 
         sent = libser_write(mss_fd, packet, bytes_total);
         bytes_total -= sent;
-        packet = ((uint8_t*) packet) + sent;
+        packet = (MssPacket*)(((uint8_t*) packet) + sent);
 
         usleep(100);
     }
 
     return MSS_OK;
 }
+

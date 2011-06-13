@@ -23,6 +23,7 @@ int main (int argc, char** argv)
 	printf("%d ", slave_addrs[i]);
     printf("\n");
 
+    mss_init("/dev/ttyS1", B9600);
     mss_run_master(slave_addrs, sa_size);
 
     return 0;

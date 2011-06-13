@@ -5,6 +5,13 @@
 #include "packet.h"
 #include "crc.h"
 
+#define DEBUG
+
+#ifdef DEBUG
+#include "mss-utils.h"
+#include <stdio.h>
+#endif
+
 int keep_master_running;
 
 extern int mss_fd;
@@ -38,8 +45,17 @@ int mss_run_master (const mss_addr* slaves, int slaves_count)
         /* Send BUS to current slave. */
         send_mss_packet( bus_packet + current_slave );
     
+#ifdef DEBUG
+    printf("\n[BUS sent to %d]",(bus_packet + current_slave)->bus.slave_addr);
+    fflush(stdout);
+#endif
+
         /* Wait for NRQ, timeout, or data message. */
+	packet->generic.packet_type = -1;
         recv_res = receive_mss_packet( packet, MSS_RECEIVE_TIMEOUT );
+#ifdef DEBUG
+        mss_print_packet( packet );
+#endif
         if(
             (recv_res != MSS_OK) || (
                 (recv_res == MSS_OK) &&
@@ -48,7 +64,11 @@ int mss_run_master (const mss_addr* slaves, int slaves_count)
         ) {
             /* Unless DAT is broadcast, we expect an ACK packet to appear. */
             if( packet->dat.dst_addr != MSS_BROADCAST_ADDR ) {
+	        packet->generic.packet_type = -1;
                 receive_mss_packet( packet, MSS_RECEIVE_TIMEOUT );
+#ifdef DEBUG
+                mss_print_packet( packet );
+#endif
             }
         } /* else current slave has nothing to transfer. */
         

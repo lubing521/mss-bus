@@ -77,7 +77,8 @@ int mss_slave_send (mss_addr addr, const char* data, size_t data_len);
  * @return Number of data bytes received. MSS_UNINITIALZED is returned upon
  *         error caused by library not initialized.
  */
-int mss_slave_recv (mss_addr* sender_addr, char* buffer, int* is_broadcast);
+int mss_slave_recv (mss_addr* sender_addr, char* buffer, int* is_broadcast, int
+in_loop);
 
 #endif  /* _MSS_BUS_H_ */
 
