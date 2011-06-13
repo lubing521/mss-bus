@@ -1,0 +1,257 @@
+
+\documentclass[a4paper,12pt]{article}
+\usepackage{latexsym}
+\usepackage{amsfonts}
+\usepackage{relsize}
+\usepackage{indentfirst}
+\usepackage[MeX]{polski}
+\usepackage[utf8]{inputenc}
+\usepackage[polish]{babel}
+
+\title{
+    \textbf{Sieci komputerowe 2 \\ Laboratorium} \\
+    {\normalsize<<Implementacja protokołu warstwy 2 na wspólnej szynie>>} \\
+    {\large{>>Dokumentacja końcowa<<}}
+}
+
+\author{
+    \makebox[8em][c]{Piotr Bałut} \and
+    \makebox[8em][c]{Maciej Rubikowski} \and
+    \makebox[8em][c]{Tomasz Pieczerak}
+}
+
+\addtolength{\oddsidemargin}{-.3in}
+\addtolength{\evensidemargin}{-.3in}
+\addtolength{\textwidth}{0.6in}
+\addtolength{\topmargin}{-.75in}
+\addtolength{\textheight}{1.5in}
+
+\begin{document}
+\maketitle
+
+\section{Treść zadania}
+W ramach projektu dokonaliśmy implementacji sieci typu master-slave,
+wykorzystując jako warstwę fizyczną łącze RS485. Zgodnie z założeniami
+wstępnymi, projekt udostępnia następujące usługi warstwy łącza danych:
+
+\begin{itemize}
+  \item Send Data with Acknowledge (SDA);
+  \item Send Data with No Acknowledge (SDN) -- usługa typu broadcast.
+\end{itemize}
+
+\paragraph{Przyjęte założenia}\
+
+\begin{itemize}
+  \item każdy węzeł sieci posiada unikalny identyfikator (liczba 8-bitowa),
+  \item maksymalna liczba węzłów w sieci wynosi $64$,
+  \item w sieci znajduje się jeden węzeł (\emph{master}) zarządzający
+        dostępem do łącza oraz wiele węzłów podrzędnych (\emph{slave}),
+  \item węzeł zarządzający (\emph{master}) zna adresy wszystkich węzłów
+        podłączonych do sieci (ale niektóre z nich mogą być wyłączone).
+\end{itemize}
+
+Implementacja została wykonana w środowisku GNU/Linux.
+
+\section{Dodatkowe założenia implementacyjne}
+
+W trakcie analizy treści zadania dostrzegliśmy potrzebę wprowadzenia pewnych
+dodatkowych założeń/ograniczeń precyzujących implementowane zagadnienie:
+
+\begin{itemize}
+  \item rozwiązanie \textbf{nie musi} być optymalne -- naszym celem nie było
+        stworzenie najbardziej wydajnej sieci, lecz sieci \emph{po prostu
+        działającej};
+  \item nie zachodziła konieczność implementachi procesu rejestracji maszyn,
+        tj. każdy host typu \emph{slave} posiada przypisany na stałe adres,
+        o którym wiedzę posiada \emph{master};
+  \item dostarczone funkcje obsługujące wysyłanie/odbieranie danych na/z
+        szyny opierają się na komunikacji znakowej, toteż nie miało sensu
+        żmudne budowanie nagłówków ramek z pojedynczych bitów, toteż
+        \emph{zawsze} operowaliśmy na bajtach;
+  \item praca protokołu w warstwie 2 implikowała brak konieczności poprawnej
+        interpretacji danych zawartych w pakietach niosących dane. Za cel
+        biblioteki przyjęliśmy jednynie przenoszenie danych przez sieć, z
+        zapewnieniem poprawności przesyłanych pakietów. Składanie tychże w
+        sensowne komunikaty leży w gestii oprogramowania warstw wyższych;
+  \item w celu zapewnienia poprawności przesyłanych pakietów każdy z nich
+        zawierał sumę kontrolną pozwalającą zweryfikować jego poprawność
+        (\emph{CRC});
+  \item \emph{master} jest wyłącznie węzłem kontrolującym szynę -- nie
+        odbiera ani nie wysyła żadnych pakietów danych.
+\end{itemize}
+
+\section{Logika protokołu}
+
+\paragraph{Przydział łącza}\
+
+Przydział łącza przez maszynę \emph{master} opiera się na algorytmie
+\emph{Round Robin}. Węzeł zarządzający odpytuje kolejno wszystkie maszyny
+\emph{slave}, wysyłając do nich ramki \texttt{BUS}. Domyślnie \emph{master}
+zakłada, iż odpytywany węzeł będzie transmitował dane. Jeśli \emph{slave} nie
+ma danych do przesłania, może on przesłać do węzła zarządzającego ramkę
+\texttt{NRQ} w celu rezygnacji z prawa do transmisji. Analogiczny skutek będzie
+miał brak odpowiedzi - po przekroczeniu ustalonego timeoutu \emph{master}
+przekaże prawo do transmisji następnej maszynie. W ramach pojedynczej
+transmisji można wysłać do 10 bajtów danych. Następnie \emph{master} ponownie
+przejmuje szynę i kontynuuje odpytywanie od następnej maszyny.
+
+\paragraph{Przesył danych (z punktu widzenia użytkownika)}\
+
+Maszyna \emph{slave} chcąc przesłać dane nasłuchuje na szynie czekając na
+swoją kolejkę -- tj. czeka na ramkę \texttt{BUS} adresowaną do niej. Po
+otrzymaniu takowej rozpoczyna transmisję, tzn. wysyła \textbf{jedną} ramkę
+\texttt{DAT} o zmiennej długości pola danych od 1 do 10 bajtów. W przypadku
+transmisji z potwierdzeniem po wysłaniu danych stacja oczekuje na
+potwierdzenie, a następnie zwalnia szynę. Jeśli zostały jeszcze dane do
+wysłania stacja czeka na ponowny przydział łącza i po jego otrzymaniu powtarza
+procedurę.
+
+Dodatkowo ramki \texttt{DAT} w trybie SDA są numerowane. W przypadku braku
+otrzymania potwierdzenia poprawnego odbioru danych transmisja zostanie
+przerwana, zaś aplikacja otrzyma informację o ilości danych, które zostały
+poprawnie przesłane. W takim przypadku pierwsza ramka kolejnej transmisji
+danych będzie miała numer ostatniej niepotwierdzonej ramki \texttt{DAT}.
+
+Retransmisja zagubionych danych nie leży w gestii protokołu, jednak aby
+zapobiec duplikowaniu ramek \texttt{DAT} u odbiorcy w przypadku zagubienia
+potwierdzenia kiedy to aplikacja retransmituje dane, protokół zapewnia, iż
+otrzymanie kolejno dwóch ramek danych o takim samym numerze spowoduje
+zignorowanie danych z drugiej ramki (chociaż zostanie ona potwierdzona).
+Dodatkowo każdy węzeł utrzymuje indywidualne liczniki ramek dla każdego z
+pozostałych węzłów (tzn. każda para maszyn pracujących w sieci posiada
+indywidualną parę liczników), co zwalnia maszyny z obowiązku śledzenia
+transmisji, które nie są adresowane do nich.
+
+\paragraph{Kwestia \emph{timeout'ów}}\
+
+Istnieją dwie sytuacje, w których konieczne jest wprowadzenie czasowego
+przeterminowania odpowiedzi na ramki, aby zapobiec zawieszeniu działania
+protokołu z powodu nieobecności którejś ze stacji:
+\begin{itemize}
+  \item odpowiedĽ \emph{slave'a} na ramkę \texttt{BUS},
+  \item potwierdzenie \texttt{ACK} odebrania danych przez \emph{slave'a}
+        (odbiorcę).
+\end{itemize}
+Aby uprościć tworzenie protokołu zamiast mierzyć rzeczywisty upływ czasu
+uznaliśmy, że wystarczającym kryterium będzie pojawienie się bajtu
+oznaczającego początek ramki w pewnej ustalonej liczbie odebranych bajtów po
+rozpoczęciu oczekiwania. W obu wymienionych powyżej przypadkach uznajemy, że
+jeśli w pierwszych \textbf{5 bajtach} nie pojawi się znacznik początku
+poprawnej ramki, nasłuchujący może uznać, iż odpowiedzi nie było.
+
+\paragraph{Weryfikacja poprawności datagramów}\
+
+Każda wysyłana ramka jest opatrzona \emph{cyklicznym kodem nadmiarowym}
+\emph{CRC16}. Kod funkcji obliczającej sumę kontrolną został dostarczony
+przez prowadzących. Ponadto 
+
+\section{Formaty ramek}
+
+Ogólny format ramek wykorzystywanych przez protokół wygląda następująco:
+\begin{displaymath}
+  \underbrace{\hbox{<<znacznik początku ramki>>}}_{1B}
+  \underbrace{\hbox{<<CRC16>>}}_{2B}
+  \underbrace{\hbox{<<etykieta typu>>}}_{1B}
+  \underbrace{\hbox{<<zależne od typu>>}}_{0-14B}
+\end{displaymath}
+
+\emph{Znacznik początku ramki} o wartości numerycznej $0xBF$ służy łatwiejszej
+identyfikacji ramek w strumieniu bajtów i jest wspólny dla wszystkich typów
+(wprowadzamy dla niego oznaczenie \texttt{BOF} -- \emph{begin of frame}).
+W protokole występują cztery typy ramek (w nawiasach podane jest jaki rodzaj
+stacji może daną ramkę wysłać, a jaki odebrać):
+\begin{itemize}
+  \item BUS (\emph{master} $\rightarrow$ \emph{slave}) -- zapytanie
+        o zainteresowanie szyną
+    \begin{displaymath}
+      \underbrace{\hbox{<<BOF>>}}_{1B}
+      \underbrace{\hbox{<<CRC16>>}}_{2B}
+      \underbrace{01h}_{1B}
+      \underbrace{\hbox{<<adres \emph{slave'a}>>}}_{1B}
+    \end{displaymath}
+  \item NRQ (\emph{slave} $\rightarrow$ \emph{master}) -- rezygnacja z dostępu do
+        szyny (wysyłanie pakietów \texttt(NRQ) przez odpytywaną maszynę pracującą
+		w trybie \emph(slave) jest opcjonalne).
+    \begin{displaymath}
+      \underbrace{\hbox{<<BOF>>}}_{1B}
+      \underbrace{\hbox{<<CRC16>>}}_{2B}
+      \underbrace{02h}_{1B}
+    \end{displaymath}
+    Adres stacji rezygnującej z dostępu nie jest tu konieczny, gdyż \emph{master}
+	wie komu przyznał dostęp.
+  \item DAT (\emph{slave} $\rightarrow$ \emph{slave}) -- pakiet danych
+    \begin{displaymath}
+      \underbrace{\hbox{<<BOF>>}}_{1B}
+      \underbrace{\hbox{<<CRC16>>}}_{2B}
+      \underbrace{04h}_{1B}
+      \underbrace{\hbox{<<numer ramki>>}}_{1B}
+      \underbrace{\hbox{<<adres odbiorcy>>}}_{1B}
+      \underbrace{\hbox{<<adres nadawcy>>}}_{1B}
+      \underbrace{\hbox{<<długość>>}}_{1B}
+      \underbrace{\hbox{<<dane>>}}_{1-10B}
+    \end{displaymath}
+    Pole \emph{długość} informuje od rozmiarze pola danych. Adres odbiorcy
+    $0xFF$ oznacza transmisję \emph{broadcast'ową} bez potwierdzenia.
+  \item ACK (\emph{slave} $\rightarrow$ \emph{slave}) -- potwierdzenie
+        otrzymania danych
+    \begin{displaymath}
+      \underbrace{\hbox{<<BOF>>}}_{1B}
+      \underbrace{\hbox{<<CRC16>>}}_{2B}
+      \underbrace{08h}_{1B}
+      \underbrace{\hbox{<<numer potwierdzanej ramki>>}}_{1B}
+    \end{displaymath}
+    Adres nie jest konieczny, nadawca wie do kogo wysyłał i nie są możliwe
+    współbieżne transmisje, więc ramka zawsze odnosi się do aktualnie
+    trwającej transmisji.
+\end{itemize}
+
+\section{Architektura rozwiązania}
+
+\paragraph{Funkcje protokołu}\
+
+Protokół komunikacji będzie udostępniał kilka funkcji pozwalających na jego
+użytkowanie z poziomu aplikacji.
+\begin{itemize}
+  \item \texttt{mss\_run\_master(\textnormal{<<struktura sieci>>})} : funkcja
+        wywoływana tylko i wyłącznie w węĽle \emph{master} i realizująca
+        zaprojektowany algorytm przydziału łącza, \emph{master} zna adresy
+        wszystkich stacji w sieci, stąd argument je opisujący;
+  \item \texttt{mss\_slave\_send(\textnormal{<<adres>>}, \textnormal{<<dane>>})}
+        : wywoływana w węĽle \emph{slave} celem transmisji danych do innej
+        (lub innych) stacji, funkcja jest blokująca -- do momentu zakończenia
+        transmisji, wartość zwracana informuje o powodzeniu operacji;
+  \item \texttt{mss\_slave\_recv(\textnormal{<<bufor>>})} : po wywołaniu tej
+        funkcji węzeł \emph{slave} zaczyna nasłuchiwać na szynie transmisji
+        adresowanej do niego, odbiera dane do wskazanego bufora odsyłając
+        w razie potrzeby (czyli w trybie transmisji SDA) potwierdzenie
+        \texttt{ACK} do nadawcy. Funkcja dodatkowo jako parametr przyjmuje
+        timeout określający, jak długo należy ozcekiwać na nadejście
+        wiadomości.
+\end{itemize}
+Funkcja wysyłająca zawiera w sobie całą logikę działania protokołu --
+oczekiwanie na ramkę \texttt{BUS}, odpowiedĽ ramką \texttt{REQ} i transmisję.
+W przypadku błędu lub braku potwierdzenia nie próbuje ponownie wysłać danych
+-- leży to w gestii aplikacji.
+
+\paragraph{Aplikacje}\
+
+Przygotowaliśmy dwa programy w języku C: program dla węzła \emph{master}
+oraz dla węzła \emph{slave}:
+\begin{itemize}
+    \item \texttt{mss-bus-master} to program działający na węĽle
+          \emph{master}, utrzymuje on statyczną tablicę adresów hostów
+          \emph{slave} i kontroluje dostęp do szyny, kod programu sprowadza
+          się w zasadzie do wywołania funkcji \texttt{mss\_run\_master()};
+    \item \texttt{mss-bus-slave} to program, który pozwala użytkownikowi
+          na jednoczesne wysyłanie wiadomości do innych węzłów oraz
+          przeglądanie wiadomości nadsyłanych do aktualnego węzła. Operacje
+          te są niezależne - możliwe jest jednoczesne wysyłanie i odbieranie
+          danych.
+\end{itemize}
+
+\section{Wnioski z implementacji}
+
+Bla bla bla, Szyna ssie! Bla bla bla.
+
+\end{document}
+
