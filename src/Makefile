@@ -11,7 +11,7 @@ TARGETS = sread swrite master rslave sslave test
 SREAD_OBJ = sread.o libser.o
 SWRITE_OBJ = swrite.o libser.o
 MASTER_OBJ = packet.o mss-bus.o libser.o crc.o master.o mss-utils.o mss-bus-master.o
-RSLAVE_OBJ = packet.o mss-bus.o libser.o crc.o slave_recv.o mss-bus-slave.o
+RSLAVE_OBJ = packet.o mss-bus.o libser.o crc.o slave-recv.o mss-bus-slave.o
 SSLAVE_OBJ = slave-send.o mss-bus.o mss-bus-slave.o libser.o crc.o packet.o
 TEST_OBJ = mss-bus.o mss-bus-slave.o libser.o crc.o packet.o test.o
 
